@@ -1,4 +1,3 @@
-
 from pymongo import ASCENDING, DESCENDING
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -6,25 +5,25 @@ from pymongo.asynchronous.database import AsyncDatabase
 async def create_indexes(database: AsyncDatabase) -> None:
     """Создаёт индексы для коллекций FinTrack."""
 
-    # Категории: запрещаем повторение нормализованных названий.
+    # Запрещаем повторение нормализованных названий категорий.
     await database.categories.create_index(
         [("name_normalized", ASCENDING)],
         unique=True,
         name="uq_categories_name_normalized",
     )
 
-    # Стандартные категории: у каждой должен быть уникальный ключ.
-    # Пользовательские категории могут не иметь default_key.
+    # Ключ стандартной категории должен быть уникальным.
+    # Пользовательские категории могут иметь default_key=None.
     await database.categories.create_index(
         [("default_key", ASCENDING)],
         unique=True,
         partialFilterExpression={
-            "default_key": {"$type": "string"}
+            "default_key": {"$type": "string"},
         },
         name="uq_categories_default_key",
     )
 
-    # Операции: сортировка по дате и времени создания.
+    # Сортировка операций по дате и времени создания.
     await database.transactions.create_index(
         [
             ("date", DESCENDING),
@@ -43,7 +42,7 @@ async def create_indexes(database: AsyncDatabase) -> None:
         name="ix_transactions_type_date_created",
     )
 
-    # Фильтрация по категории и периоду.
+    # Фильтрация операций по категории и дате.
     await database.transactions.create_index(
         [
             ("category_id", ASCENDING),

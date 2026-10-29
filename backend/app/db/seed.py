@@ -1,7 +1,7 @@
-
-from pymongo.asynchronous.database import AsyncDatabase
-
 from datetime import datetime, timezone
+
+from pymongo import ReturnDocument
+from pymongo.asynchronous.database import AsyncDatabase
 
 
 DEFAULT_CATEGORIES = [

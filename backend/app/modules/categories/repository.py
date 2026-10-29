@@ -1,16 +1,14 @@
 
-from bson import ObjectId
 from datetime import datetime, timezone
 
-from pymongo import ReturnDocument
-from pymongo.errors import DuplicateKeyError
-from pymongo import ASCENDING
+from bson import ObjectId
+from pymongo import ASCENDING, ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.errors import DuplicateKeyError
 
 
 async def get_all_categories(database: AsyncDatabase) -> list[dict]:
     """Возвращает все категории, сначала стандартные."""
-
     cursor = database.categories.find().sort(
         [
             ("is_default", -1),
@@ -26,7 +24,6 @@ async def create_category(
     name: str,
 ) -> dict:
     """Создаёт пользовательскую категорию."""
-
     now = datetime.now(timezone.utc)
 
     category = {
@@ -40,15 +37,19 @@ async def create_category(
 
     try:
         result = await database.categories.insert_one(category)
-    except DuplicateKeyError:
-        raise ValueError("Категория с таким названием уже существует")
+    except DuplicateKeyError as error:
+        raise ValueError(
+            "Категория с таким названием уже существует"
+        ) from error
 
     created_category = await database.categories.find_one(
         {"_id": result.inserted_id}
     )
 
     if created_category is None:
-        raise RuntimeError("Не удалось получить созданную категорию")
+        raise RuntimeError(
+            "Не удалось получить созданную категорию"
+        )
 
     return created_category
 
@@ -58,7 +59,6 @@ async def get_category_by_id(
     category_id: str,
 ) -> dict | None:
     """Находит категорию по её MongoDB ID."""
-
     if not ObjectId.is_valid(category_id):
         return None
 
@@ -73,7 +73,6 @@ async def update_category(
     name: str,
 ) -> dict | None:
     """Изменяет название существующей категории."""
-
     if not ObjectId.is_valid(category_id):
         return None
 
@@ -91,16 +90,17 @@ async def update_category(
             },
             return_document=ReturnDocument.AFTER,
         )
-    except DuplicateKeyError:
-        raise ValueError("Категория с таким названием уже существует")
+    except DuplicateKeyError as error:
+        raise ValueError(
+            "Категория с таким названием уже существует"
+        ) from error
 
 
 async def delete_category(
     database: AsyncDatabase,
     category_id: str,
 ) -> bool:
-    """Удаляет категорию по ID."""
-
+    """Удаляет пользовательскую категорию по ID."""
     if not ObjectId.is_valid(category_id):
         return False
 

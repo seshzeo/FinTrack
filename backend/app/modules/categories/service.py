@@ -1,8 +1,6 @@
 
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.modules.categories.repository import get_all_categories
-
 from app.modules.categories.repository import (
     create_category,
     delete_category,
@@ -14,7 +12,6 @@ from app.modules.categories.repository import (
 
 async def list_categories(database: AsyncDatabase) -> list[dict]:
     """Возвращает список категорий для API."""
-
     return await get_all_categories(database)
 
 
@@ -23,14 +20,15 @@ async def add_category(
     name: str,
 ) -> dict:
     """Проверяет название и создаёт пользовательскую категорию."""
-
     name = name.strip()
 
     if not name:
         raise ValueError("Название категории не может быть пустым")
 
     if len(name) > 100:
-        raise ValueError("Название категории не должно превышать 100 символов")
+        raise ValueError(
+            "Название категории не должно превышать 100 символов"
+        )
 
     return await create_category(database, name)
 
@@ -41,14 +39,15 @@ async def rename_category(
     name: str,
 ) -> dict:
     """Проверяет данные и переименовывает категорию."""
-
     name = name.strip()
 
     if not name:
         raise ValueError("Название категории не может быть пустым")
 
     if len(name) > 100:
-        raise ValueError("Название категории не должно превышать 100 символов")
+        raise ValueError(
+            "Название категории не должно превышать 100 символов"
+        )
 
     category = await get_category_by_id(database, category_id)
 
@@ -72,7 +71,6 @@ async def remove_category(
     category_id: str,
 ) -> None:
     """Удаляет неиспользуемую пользовательскую категорию."""
-
     category = await get_category_by_id(database, category_id)
 
     if category is None:

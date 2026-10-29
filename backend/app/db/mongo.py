@@ -1,4 +1,3 @@
-
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -14,15 +13,19 @@ database: AsyncDatabase | None = None
 async def connect_to_mongo() -> None:
     global client, database
 
-    client = AsyncMongoClient(
+    mongo_client = AsyncMongoClient(
         settings.mongodb_uri,
         serverSelectionTimeoutMS=3000,
     )
 
-    database = client[settings.mongodb_database]
+    try:
+        await mongo_client.admin.command("ping")
+    except Exception:
+        await mongo_client.close()
+        raise
 
-    # Проверяем, что MongoDB действительно доступна.
-    await client.admin.command("ping")
+    client = mongo_client
+    database = client[settings.mongodb_database]
 
 
 async def close_mongo_connection() -> None:
