@@ -2,7 +2,7 @@
 from bson import ObjectId
 from datetime import datetime, timezone
 
-from pymongo.errors import DuplicateKeyError
+from pymongo import ReturnDocument\nfrom pymongo.errors import DuplicateKeyError
 from pymongo import ASCENDING
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -88,7 +88,7 @@ async def update_category(
                     "updated_at": now,
                 }
             },
-            return_document=True,
+            return_document=ReturnDocument.AFTER,
         )
     except DuplicateKeyError:
         raise ValueError("Категория с таким названием уже существует")

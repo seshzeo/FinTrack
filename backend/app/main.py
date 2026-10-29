@@ -12,6 +12,8 @@ from app.db.mongo import (
 )
 
 from app.api.v1.categories import router as categories_router
+from app.api.v1.transactions import router as transactions_router
+from app.api.v1.statistics import router as statistics_router
 
 
 settings = get_settings()
@@ -40,10 +42,9 @@ app = FastAPI(
 )
 
 
-app.include_router(
-    categories_router,
-    prefix=settings.api_v1_prefix,
-)
+app.include_router(categories_router, prefix=settings.api_v1_prefix)
+app.include_router(transactions_router, prefix=settings.api_v1_prefix)
+app.include_router(statistics_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
