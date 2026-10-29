@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 
 from pymongo import ReturnDocument
@@ -49,8 +50,6 @@ async def seed_categories(database: AsyncDatabase) -> None:
 
     now = datetime.now(timezone.utc)
 
-    from pymongo import ReturnDocument
-
     for category in DEFAULT_CATEGORIES:
         await database.categories.find_one_and_update(
             {"default_key": category["default_key"]},
@@ -73,7 +72,7 @@ async def seed_categories(database: AsyncDatabase) -> None:
         {"created_at": {"$exists": False}},
         {"$set": {"created_at": now}},
     )
-    
+
     await database.categories.update_many(
         {"updated_at": {"$exists": False}},
         {"$set": {"updated_at": now}},

@@ -19,10 +19,14 @@ def _to_utc(value: datetime) -> datetime:
     """Приводит дату к UTC; даты без часового пояса считает UTC."""
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
+
     return value.astimezone(timezone.utc)
 
 
-def _to_response_doc(document: dict, category: dict | None = None) -> dict:
+def _to_response_doc(
+    document: dict,
+    category: dict | None = None,
+) -> dict:
     amount = document["amount"]
 
     if isinstance(amount, Decimal128):
@@ -45,13 +49,17 @@ def _to_response_doc(document: dict, category: dict | None = None) -> dict:
     }
 
 
-async def _prepare_data(database: AsyncDatabase, payload) -> dict:
+async def _prepare_data(
+    database: AsyncDatabase,
+    payload,
+) -> dict:
     if not ObjectId.is_valid(payload.category_id):
         raise LookupError("Категория не найдена")
 
     category = await database.categories.find_one(
         {"_id": ObjectId(payload.category_id)}
     )
+
     if category is None:
         raise LookupError("Категория не найдена")
 
@@ -79,8 +87,17 @@ async def list_transaction_items(
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[dict], int]:
-    if category_id and not ObjectId.is_valid(category_id):
-        raise LookupError("Категория не найдена")
+    if category_id:
+        if not ObjectId.is_valid(category_id):
+            raise LookupError("Категория не найдена")
+
+        category = await database.categories.find_one(
+            {"_id": ObjectId(category_id)},
+            {"_id": 1},
+        )
+
+        if category is None:
+            raise LookupError("Категория не найдена")
 
     if date_from is not None:
         date_from = _to_utc(date_from)
@@ -108,21 +125,40 @@ async def list_transaction_items(
         offset=offset,
     )
 
-    result = []
-    for document in documents:
-        category = await database.categories.find_one(
-            {"_id": document["category_id"]}
+    category_ids = {
+        document["category_id"]
+        for document in documents
+    }
+
+    categories = await database.categories.find(
+        {"_id": {"$in": list(category_ids)}}
+    ).to_list(length=None)
+
+    categories_by_id = {
+        category["_id"]: category
+        for category in categories
+    }
+
+    result = [
+        _to_response_doc(
+            document,
+            categories_by_id.get(document["category_id"]),
         )
-        result.append(_to_response_doc(document, category))
+        for document in documents
+    ]
 
     return result, total
 
 
-async def create_transaction(database: AsyncDatabase, payload) -> dict:
+async def create_transaction(
+    database: AsyncDatabase,
+    payload,
+) -> dict:
     data = await _prepare_data(database, payload)
     data["created_at"] = data["updated_at"]
 
     document = await insert_transaction(database, data)
+
     category = await database.categories.find_one(
         {"_id": document["category_id"]}
     )
@@ -157,6 +193,7 @@ async def update_transaction(
         raise LookupError("Операция не найдена")
 
     data = await _prepare_data(database, payload)
+
     updated = await replace_transaction(
         database,
         transaction_id,

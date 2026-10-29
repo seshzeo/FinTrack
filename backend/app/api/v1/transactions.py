@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.db.mongo import get_database
@@ -88,8 +88,13 @@ async def update_transaction_endpoint(
 async def delete_transaction_endpoint(
     transaction_id: str,
     database: AsyncDatabase = Depends(get_database),
-) -> None:
+) -> Response:
     try:
         await delete_transaction(database, transaction_id)
     except LookupError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
+    return Response(status_code=204)

@@ -61,17 +61,15 @@ async def get_statistics(
     cursor = database.transactions.find(query)
     documents = await cursor.to_list(length=None)
 
-    # Загружаем все нужные категории одним запросом,
-    # а не выполняем отдельный запрос для каждой операции.
+    # Загружаем категории одним запросом.
     category_ids = {
         document["category_id"]
         for document in documents
     }
 
-    categories_cursor = database.categories.find(
+    category_documents = await database.categories.find(
         {"_id": {"$in": list(category_ids)}}
-    )
-    category_documents = await categories_cursor.to_list(length=None)
+    ).to_list(length=None)
 
     category_names = {
         category["_id"]: category["name"]
