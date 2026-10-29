@@ -2,7 +2,8 @@
 from bson import ObjectId
 from datetime import datetime, timezone
 
-from pymongo import ReturnDocument\nfrom pymongo.errors import DuplicateKeyError
+from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from pymongo import ASCENDING
 from pymongo.asynchronous.database import AsyncDatabase
 
