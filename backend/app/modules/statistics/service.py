@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -6,9 +7,22 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 
 def _amount(value) -> Decimal:
+    """Преобразует сумму из MongoDB в Decimal."""
     if isinstance(value, Decimal128):
         return value.to_decimal()
     return Decimal(str(value))
+
+
+def _utc(value: datetime) -> datetime:
+    """Приводит дату к UTC; дату без часового пояса считает UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _iso(value: datetime | None) -> str | None:
+    """Возвращает дату в формате ISO 8601."""
+    return _utc(value).isoformat() if value is not None else None
 
 
 async def get_statistics(
@@ -16,51 +30,100 @@ async def get_statistics(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
 ) -> dict:
-    if date_from and date_to and date_from > date_to:
-        raise ValueError("Начальная дата не может быть позже конечной даты")
+    """Считает общую статистику и распределение по категориям."""
+
+    if date_from is not None:
+        date_from = _utc(date_from)
+
+    if date_to is not None:
+        date_to = _utc(date_to)
+
+    if (
+        date_from is not None
+        and date_to is not None
+        and date_from > date_to
+    ):
+        raise ValueError(
+            "Начальная дата не может быть позже конечной даты"
+        )
+
     query = {}
-    if date_from or date_to:
+
+    if date_from is not None or date_to is not None:
         query["date"] = {}
-        if date_from:
-            query["date"]["$gte"] = _utc(date_from)
-        if date_to:
-            query["date"]["$lte"] = _utc(date_to)
+
+        if date_from is not None:
+            query["date"]["$gte"] = date_from
+
+        if date_to is not None:
+            query["date"]["$lte"] = date_to
 
     cursor = database.transactions.find(query)
     documents = await cursor.to_list(length=None)
+
+    # Загружаем категории одним запросом.
+    category_ids = {
+        document["category_id"]
+        for document in documents
+    }
+
+    category_documents = await database.categories.find(
+        {"_id": {"$in": list(category_ids)}}
+    ).to_list(length=None)
+
+    category_names = {
+        category["_id"]: category["name"]
+        for category in category_documents
+    }
+
     total_income = Decimal("0.00")
     total_expense = Decimal("0.00")
     grouped: dict[str, dict] = {}
 
-    for doc in documents:
-        category_id = str(doc["category_id"])
-        category = await database.categories.find_one({"_id": doc["category_id"]})
-        name = category["name"] if category else "Категория удалена"
-        amount = _amount(doc["amount"])
-        if category_id not in grouped:
-            grouped[category_id] = {
-                "category_id": category_id,
-                "category_name": name,
+    for document in documents:
+        category_id = document["category_id"]
+        category_id_str = str(category_id)
+        category_name = category_names.get(
+            category_id,
+            "Категория удалена",
+        )
+        amount = _amount(document["amount"])
+
+        if category_id_str not in grouped:
+            grouped[category_id_str] = {
+                "category_id": category_id_str,
+                "category_name": category_name,
                 "income": Decimal("0.00"),
                 "expense": Decimal("0.00"),
             }
-        if doc["type"] == "income":
+
+        if document["type"] == "income":
             total_income += amount
-            grouped[category_id]["income"] += amount
+            grouped[category_id_str]["income"] += amount
         else:
             total_expense += amount
-            grouped[category_id]["expense"] += amount
+            grouped[category_id_str]["expense"] += amount
 
-    categories = []
+    result_categories = []
+
     for item in grouped.values():
-        categories.append({
-            "category_id": item["category_id"],
-            "category_name": item["category_name"],
-            "income": format(item["income"], ".2f"),
-            "expense": format(item["expense"], ".2f"),
-            "balance": format(item["income"] - item["expense"], ".2f"),
-        })
-    categories.sort(key=lambda item: Decimal(item["expense"]), reverse=True)
+        income = item["income"]
+        expense = item["expense"]
+
+        result_categories.append(
+            {
+                "category_id": item["category_id"],
+                "category_name": item["category_name"],
+                "income": format(income, ".2f"),
+                "expense": format(expense, ".2f"),
+                "balance": format(income - expense, ".2f"),
+            }
+        )
+
+    result_categories.sort(
+        key=lambda item: Decimal(item["expense"]),
+        reverse=True,
+    )
 
     return {
         "date_from": _iso(date_from),
@@ -69,15 +132,5 @@ async def get_statistics(
         "total_expense": format(total_expense, ".2f"),
         "balance": format(total_income - total_expense, ".2f"),
         "operations_count": len(documents),
-        "categories": categories,
+        "categories": result_categories,
     }
-
-
-def _utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
-def _iso(value: datetime | None) -> str | None:
-    return _utc(value).isoformat() if value else None
